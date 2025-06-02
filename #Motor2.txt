@@ -1,0 +1,57 @@
+#define Direction 8
+#define LED_pin 6
+#define Motor 9
+#define FG_Pin 2
+
+#define ONE_ROUND_PULSE 18
+
+volatile uint16_t counter = 0;
+bool oneRoundDone = false;
+unsigned long lastStopTime = 0;  // 记录上次停止的时间
+const unsigned long RESTART_DELAY = 5000;  // 停止后延时5秒再启动
+
+void counterISR() {
+  counter++;
+}
+
+void setup() {
+  Serial.begin(115200);
+  delay(3000);  // 上电延迟
+
+  pinMode(FG_Pin, INPUT_PULLUP);
+  pinMode(Motor, OUTPUT);
+  pinMode(Direction, OUTPUT);
+  pinMode(LED_pin, OUTPUT);
+
+  digitalWrite(LED_pin, LOW);
+  digitalWrite(Direction, HIGH);
+  counter = 0;
+
+  attachInterrupt(digitalPinToInterrupt(FG_Pin), counterISR, RISING);
+  delay(500);
+  Serial.println(counter);
+
+  analogWrite(Motor, 180);  // 启动电机
+}
+
+void loop() {
+  if (!oneRoundDone && counter >= ONE_ROUND_PULSE) {
+    analogWrite(Motor, 0);               // 停止电机
+    Serial.println(counter);
+    digitalWrite(LED_pin, HIGH);         // 灯亮
+    detachInterrupt(digitalPinToInterrupt(FG_Pin));
+    oneRoundDone = true;
+    lastStopTime = millis();             // 记录停止时间
+    Serial.println("✅ One Round Done");
+  }
+
+  // ⏱️ 到时间重新启动电机
+  if (oneRoundDone && millis() - lastStopTime >= RESTART_DELAY) {
+    counter = 0;
+    oneRoundDone = false;
+    attachInterrupt(digitalPinToInterrupt(FG_Pin), counterISR, RISING);
+    analogWrite(Motor, 180);            // 重启电机
+    digitalWrite(LED_pin, LOW);         // 灯灭
+    Serial.println("🔁 Restart Motor");
+  }
+}

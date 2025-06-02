@@ -1,0 +1,35 @@
+#define MotorPin     9   // 输出PWM的引脚（D9 支持PWM）
+#define DirPin       8   // 控制方向的引脚
+#define LEDPin       6   // 小灯（可选指示用）
+
+void setup() {
+  pinMode(MotorPin, OUTPUT);
+  pinMode(DirPin, OUTPUT);
+  pinMode(LEDPin, OUTPUT);
+  digitalWrite(LEDPin, LOW);
+}
+
+void loop() {
+  // 🚗 正转
+  digitalWrite(DirPin, HIGH);     // 设置方向（根据你电机正反来调）
+  analogWrite(MotorPin, 180);     // 转动（占空比 180/255）
+  digitalWrite(LEDPin, HIGH);     // 指示灯亮
+  delay(500);
+
+  // 🛑 停止
+  analogWrite(MotorPin, 0);       // 停止转动
+  digitalWrite(LEDPin, LOW);      // 灯灭
+  delay(500);
+
+  // 🔁 反转
+  digitalWrite(DirPin, LOW);      // 改方向
+  analogWrite(MotorPin, 180);     // 再转动
+  digitalWrite(LEDPin, HIGH);     // 灯亮
+  delay(500);
+
+  // 🛑 停止
+  analogWrite(MotorPin, 0);       // 停止
+  digitalWrite(LEDPin, LOW);      // 灯灭
+  delay(500);
+}
+

@@ -1,0 +1,42 @@
+#include <FlexiTimer2.h>
+
+#define FG_Pin 2
+#define Motor 9
+#define Direction 8
+#define LED_pin 6              // 可选指示灯
+
+#define ONE_ROUND_PULSE 18     // 一圈 = 18 个 FG 脉冲
+
+volatile uint16_t counter = 0;
+bool oneRoundDone = false;
+
+void counterISR() {
+  counter++;
+}
+
+void setup() {
+  Serial.begin(115200);
+
+  pinMode(FG_Pin, INPUT_PULLUP);
+  pinMode(Motor, OUTPUT);
+  pinMode(Direction, OUTPUT);
+  pinMode(LED_pin, OUTPUT);
+
+  digitalWrite(LED_pin, LOW);         // 初始灯灭
+  digitalWrite(Direction, HIGH);      // 正转方向
+  analogWrite(Motor, 180);            // 启动电机
+
+  attachInterrupt(digitalPinToInterrupt(FG_Pin), counterISR, RISING);
+}
+
+void loop() {
+  if (!oneRoundDone && counter >= ONE_ROUND_PULSE) {
+    analogWrite(Motor, 0);              // 停止电机
+    digitalWrite(LED_pin, HIGH);        // 灯亮表示停止
+    oneRoundDone = true;
+    detachInterrupt(digitalPinToInterrupt(FG_Pin)); // 停止计数器
+    Serial.println("One Round");
+  }
+
+  delay(100); // 保持 loop 整洁
+}

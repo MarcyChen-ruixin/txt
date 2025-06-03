@@ -1,0 +1,55 @@
+#define ONE_ROUND_PULSE 18
+
+volatile uint16_t counter = 0;
+bool oneRoundDone = false;
+
+const int FG_Pin = 2;         // 霍尔信号引脚（使用中断0）
+const int Motor = 3;          // 电机控制引脚
+const int Direction = 4;      // 电机方向控制
+const int LED_pin = 5;        // 指示灯
+
+void counterISR() {
+  counter++;
+}
+
+void setup() {
+  delay(3000);
+  Serial.begin(115200);
+  
+  pinMode(FG_Pin, INPUT_PULLUP);
+  pinMode(Motor, OUTPUT);
+  pinMode(Direction, OUTPUT);
+  pinMode(LED_pin, OUTPUT);
+  
+  digitalWrite(LED_pin, LOW);
+  digitalWrite(Direction, HIGH);
+  digitalWrite(Motor, HIGH);  // 启动电机
+  
+  attachInterrupt(digitalPinToInterrupt(FG_Pin), counterISR, RISING);
+}
+
+void loop() {
+  if (!oneRoundDone && counter >= ONE_ROUND_PULSE) {
+    digitalWrite(Motor, LOW);    // 停止电机
+    digitalWrite(LED_pin, HIGH); // LED亮表示到达
+    Serial.println(counter);
+    
+    detachInterrupt(digitalPinToInterrupt(FG_Pin)); // 关闭中断
+    oneRoundDone = true;
+    
+    Serial.println("One Round Completed");
+    delay(500);  // 停留一段时间作为提示
+    
+    // 重置状态
+    digitalWrite(LED_pin, LOW);
+    digitalWrite(Motor, HIGH);  // 再次启动电机
+    counter = 0;
+    oneRoundDone = false;
+    
+    attachInterrupt(digitalPinToInterrupt(FG_Pin), counterISR, RISING); // 重新启用中断
+    Serial.println("Restart Motor");
+  }
+
+  // 可选：输出当前状态
+  // Serial.println(counter);
+}

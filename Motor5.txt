@@ -1,0 +1,47 @@
+#define MotorPin 10
+#define DirPin 8
+#define LEDPin 6
+#define FG_Pin 2
+#define CYCLE 1854
+
+volatile uint16_t counter = 0;
+bool stopped = false;
+
+void counterISR() {
+  counter++;
+}
+
+void setup() {
+  delay(3000);
+  Serial.begin(115200);
+  pinMode(FG_Pin, INPUT_PULLUP);
+  pinMode(MotorPin, OUTPUT);
+  pinMode(DirPin, OUTPUT);
+  pinMode(LEDPin, OUTPUT);
+
+  digitalWrite(DirPin, HIGH);     // 正转方向
+  digitalWrite(MotorPin, HIGH);   // 启动电机
+  digitalWrite(LEDPin, LOW);      // 灯灭
+
+  attachInterrupt(digitalPinToInterrupt(FG_Pin), counterISR, RISING);
+}
+
+void loop() {
+  Serial.println(counter);
+
+  if (!stopped && counter >= CYCLE) {
+    digitalWrite(MotorPin, LOW);    // 停止电机
+    digitalWrite(LEDPin, HIGH);     // 灯亮
+    Serial.println("== ONE CYCLE DONE ==");
+
+    delay(3000);                    // 停3秒
+
+    digitalWrite(LEDPin, LOW);      // 灯灭
+    digitalWrite(MotorPin, HIGH);   // 重新启动电机
+    noInterrupts();
+    counter = 0;                    // 重置计数器
+    interrupts();
+  }
+
+  delay(50); // 控制 loop 扫描频率
+}

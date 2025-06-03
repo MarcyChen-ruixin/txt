@@ -1,0 +1,54 @@
+#define MotorPin 10
+#define DirPin 8
+#define LEDPin 6
+#define FG_Pin 2               // 霍尔信号输入（黄线）D2
+
+#define ONE_ROUND_PULSE 18     // 每转一圈的脉冲数
+
+volatile uint16_t counter = 0;
+bool forward = true;           // 当前方向标记
+
+void counterISR() {
+  counter++;
+}
+
+void setup() {
+  pinMode(MotorPin, OUTPUT);
+  pinMode(DirPin, OUTPUT);
+  pinMode(LEDPin, OUTPUT);
+  pinMode(FG_Pin, INPUT_PULLUP);
+
+  attachInterrupt(digitalPinToInterrupt(FG_Pin), counterISR, RISING);
+
+  digitalWrite(LEDPin, LOW);
+  Serial.begin(115200);
+}
+
+void loop() {
+  // 设置方向
+  digitalWrite(DirPin, forward ? HIGH : LOW);
+  counter = 0;  // 清零脉冲计数
+
+  // 开始转动
+  digitalWrite(MotorPin, HIGH);
+  Serial.println(forward ? ">>> 正转开始" : "<<< 反转开始");
+
+  // 等待转一圈
+  while (counter < ONE_ROUND_PULSE) {
+    // 等转完一圈再往下执行
+  }
+
+  // 停止
+  digitalWrite(MotorPin, LOW);
+  Serial.println("🛑 一圈完成");
+
+  // 灯亮
+  digitalWrite(LEDPin, HIGH);
+  delay(2000);  // 等两秒
+
+  // 灯灭，准备下一轮
+  digitalWrite(LEDPin, LOW);
+
+  // 方向切换
+  forward = !forward;
+}

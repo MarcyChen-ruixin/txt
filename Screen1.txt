@@ -1,0 +1,105 @@
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+#define OLED_RESET    -1
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+
+// 引脚定义
+const int buttonSelectPin = 7;   // 切换选项按钮
+const int buttonConfirmPin = 11; // 执行按钮
+const int buzzerPin        = 13; // 蜂鸣器
+
+// 状态变量
+enum Unit { CM, INCH };
+Unit currentUnit = CM;
+int valueSelected = 0;
+int menuIndex = 0;
+const int MENU_COUNT = 3;
+
+// 去抖动变量
+bool lastSelectState  = HIGH;
+bool lastConfirmState = HIGH;
+unsigned long lastDebounceTimeSelect  = 0;
+unsigned long lastDebounceTimeConfirm = 0;
+const unsigned long debounceDelay = 50;
+
+// 蜂鸣器发声
+void beep(int duration) {
+  tone(buzzerPin, 1000);
+  delay(duration);
+  noTone(buzzerPin);
+}
+
+// OLED 更新显示
+void updateDisplay() {
+  display.clearDisplay();
+  display.setTextSize(2);
+  display.setTextColor(SSD1306_WHITE);
+
+  display.setCursor(0, 0);
+  display.print(menuIndex == 0 ? "> " : "  ");
+  display.print("Unit: ");
+  display.println(currentUnit == CM ? "cm" : "in");
+
+  display.setCursor(0, 20);
+  display.print(menuIndex == 1 ? "> " : "  ");
+  display.print("Value: ");
+  display.println(valueSelected);
+
+  display.setCursor(0, 40);
+  display.print(menuIndex == 2 ? "> " : "  ");
+  display.println("Confirm");
+
+  display.display();
+}
+
+void setup() {
+  pinMode(buttonSelectPin, INPUT_PULLUP);
+  pinMode(buttonConfirmPin, INPUT_PULLUP);
+  pinMode(buzzerPin, OUTPUT);
+
+  if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+    while (true);  // OLED 初始化失败
+  }
+  updateDisplay();
+}
+
+void loop() {
+  // 处理菜单切换按钮
+  int readingSelect = digitalRead(buttonSelectPin);
+  if (readingSelect != lastSelectState && (millis() - lastDebounceTimeSelect) > debounceDelay) {
+    lastDebounceTimeSelect = millis();
+    if (readingSelect == LOW) {
+      menuIndex = (menuIndex + 1) % MENU_COUNT;
+      beep(100);
+      updateDisplay();
+    }
+  }
+  lastSelectState = readingSelect;
+
+  // 处理确认按钮
+  int readingConfirm = digitalRead(buttonConfirmPin);
+  if (readingConfirm != lastConfirmState && (millis() - lastDebounceTimeConfirm) > debounceDelay) {
+    lastDebounceTimeConfirm = millis();
+    if (readingConfirm == LOW) {
+      if (menuIndex == 0) {
+        currentUnit = (currentUnit == CM) ? INCH : CM;
+        beep(100);
+      } else if (menuIndex == 1) {
+        valueSelected++;
+        beep(100);
+      } else if (menuIndex == 2) {
+        beep(500);
+        // 这里可以添加执行确认动作的代码
+      }
+      updateDisplay();
+    }
+  }
+  lastConfirmState = readingConfirm;
+
+  delay(10); // 主循环节奏控制
+}
+

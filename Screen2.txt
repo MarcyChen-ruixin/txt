@@ -1,0 +1,66 @@
+#include <Wire.h>
+#include <U8g2lib.h>
+
+// OLED 使用 I2C 接口，初始化 u8g2 实例
+U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
+
+// 引脚定义
+const int buttonSelectPin = 7;
+const int buttonConfirmPin = 11;
+const int buzzerPin = 13;
+
+// 枚举与变量
+enum Unit { CM, INCH };
+Unit currentUnit = CM;
+int valueCM = 0;
+float valueIN = 0;
+int menuIndex = 0;
+const int MENU_COUNT = 3;
+bool confirmed = false;  // 是否已经确认（显示对勾）
+
+// 去抖动变量
+bool lastSelectState = HIGH;
+bool lastConfirmState = HIGH;
+unsigned long lastDebounceTimeSelect = 0;
+unsigned long lastDebounceTimeConfirm = 0;
+const unsigned long debounceDelay = 50;
+
+void beep(int duration) {
+  tone(buzzerPin, 1000);
+  delay(duration);
+  noTone(buzzerPin);
+}
+
+// 更新 OLED 显示
+void updateDisplay() {
+  u8g2.clearBuffer();
+  u8g2.setFont(u8g2_font_6x12_tr);
+
+  u8g2.setCursor(0, 14);
+  u8g2.print(menuIndex == 0 ? "> " : "  ");
+  u8g2.print("Unit: ");
+  u8g2.println(currentUnit == CM ? "cm" : "in");
+
+  u8g2.setCursor(0, 30);
+  u8g2.print(menuIndex == 1 ? "> " : "  ");
+  u8g2.print("Value: ");
+  if (currentUnit == CM)
+    u8g2.println(valueCM);
+  else
+    u8g2.println(valueIN, 2);
+
+  u8g2.setCursor(0, 46);
+  u8g2.print(menuIndex == 2 ? "> " : "  ");
+  u8g2.println("Confirm");
+
+  // 如果已确认，显示对勾 
+  if (confirmed) {
+    u8g2.setFont(u8g2_font_open_iconic_check_1x_t);
+    u8g2.drawGlyph(110, 64, 0x0041); // 对勾图标位置
+  }
+
+  u8g2.sendBuffer();
+}
+
+void setup() {
+  pinMode

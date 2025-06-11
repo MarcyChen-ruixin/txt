@@ -1,0 +1,201 @@
+#include <Wire.h>
+#include <U8g2lib.h>
+#include <Servo.h>
+Servo myServo;
+#define ServoPin 9
+
+#define PWM_IN 3              // 树莓派 PWM → Nano
+#define DIR_IN 4              // 树莓派 DIR → Nano
+#define MotorPin 10           // Nano 输出电机PWM
+#define DirPin 8              // Nano 输出方向
+#define LEDPin 6              // LED
+#define LED2 5
+#define FG_Pin 2              // 霍尔信号
+#define CYCLE 1854
+
+U8G2_SSD1306_128X64_NONAME_1_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
+
+// 引脚定义
+const int buttonSelectPin = 7;
+const int buttonConfirmPin = 11;
+const int buzzerPin = 13;
+
+volatile uint16_t counter = 0;
+bool stopped = false;
+
+void counterISR() {
+  counter++;
+}
+
+enum Unit { CM, INCH };
+Unit currentUnit = CM;
+int valueCM = 1;             // 设置下限为 2cm
+float valueIN = 0.4;        // 对应下限为 2cm
+int menuIndex = 0;
+const int MENU_COUNT = 3;
+bool confirmed = false;
+
+// 去抖动变量
+bool lastSelectState = HIGH;
+bool lastConfirmState = HIGH;
+unsigned long lastDebounceTimeSelect = 0;
+unsigned long lastDebounceTimeConfirm = 0;
+const unsigned long debounceDelay = 50;
+
+bool locked = false;
+int lastDirState = HIGH;
+
+void beep(int duration) {
+  tone(buzzerPin, 1000);
+  delay(duration);
+  noTone(buzzerPin);
+}
+
+// OLED 更新函数
+void updateDisplay() {
+  u8g2.firstPage();
+  do {
+    u8g2.setFont(u8g2_font_9x15_tr);
+
+    u8g2.setCursor(0, 14);
+    u8g2.print(menuIndex == 0 ? "> " : "  ");
+    u8g2.print("Unit: ");
+    u8g2.println(currentUnit == CM ? "cm" : "in");
+
+    u8g2.setCursor(0, 30);
+    u8g2.print(menuIndex == 1 ? "> " : "  ");
+    u8g2.print("Value: ");
+    if (currentUnit == CM)
+      u8g2.println(valueCM);
+    else
+      u8g2.println(valueIN, 2);
+
+    u8g2.setCursor(0, 46);
+    u8g2.print(menuIndex == 2 ? "> " : "  ");
+    u8g2.println("Confirm");
+
+    if (confirmed) {
+      u8g2.setFont(u8g2_font_open_iconic_check_2x_t);
+      u8g2.drawGlyph(90, 55, 0x0041);
+    }
+  } while (u8g2.nextPage());
+}
+
+void setup() {
+  delay(3000);
+  pinMode(FG_Pin, INPUT_PULLUP);
+  pinMode(MotorPin, OUTPUT);
+  pinMode(DirPin, OUTPUT);
+  pinMode(LEDPin, OUTPUT);
+  pinMode(LED2, OUTPUT);
+  pinMode(PWM_IN, INPUT);
+  pinMode(DIR_IN, INPUT);
+  myServo.attach(ServoPin);
+  myServo.write(0);
+  attachInterrupt(digitalPinToInterrupt(FG_Pin), counterISR, RISING);
+  pinMode(buttonSelectPin, INPUT_PULLUP);
+  pinMode(buttonConfirmPin, INPUT_PULLUP);
+  pinMode(buzzerPin, OUTPUT);
+  digitalWrite(MotorPin, LOW);
+
+  u8g2.begin();
+  updateDisplay();
+}
+
+void loop() {
+  int dirState = digitalRead(DIR_IN);
+  digitalWrite(DirPin, dirState);
+
+  if (dirState != lastDirState) {
+    if (dirState == LOW) {
+      locked = true;
+    } else {
+      locked = false;
+    }
+  }
+  lastDirState = dirState;
+
+  if (!locked) {
+    int readingSelect = digitalRead(buttonSelectPin);
+    if (readingSelect != lastSelectState && (millis() - lastDebounceTimeSelect) > debounceDelay) {
+      lastDebounceTimeSelect = millis();
+      if (readingSelect == LOW) {
+        menuIndex = (menuIndex + 1) % MENU_COUNT;
+        beep(100);
+        updateDisplay();
+      }
+    }
+    lastSelectState = readingSelect;
+
+    int readingConfirm = digitalRead(buttonConfirmPin);
+    if (readingConfirm != lastConfirmState && (millis() - lastDebounceTimeConfirm) > debounceDelay) {
+      lastDebounceTimeConfirm = millis();
+      if (readingConfirm == LOW) {
+        if (menuIndex == 0) {
+          currentUnit = (currentUnit == CM) ? INCH : CM;
+          confirmed = false;
+          beep(100);
+        } else if (menuIndex == 1) {
+          if (currentUnit == CM) {
+            valueCM+=1;
+            if (valueCM>12) valueCM = 1;
+            confirmed = false;
+            beep(100);
+          } else if (currentUnit == INCH) {
+            valueIN += 0.2;
+            if (valueIN > 4.8) valueIN = 0.4;
+            confirmed = false;
+            beep(100);
+          }
+        } else if (menuIndex == 2) {
+          beep(500);
+          confirmed = true;
+        }
+        updateDisplay();
+      }
+    }
+    lastConfirmState = readingConfirm;
+  }
+
+  int cycleTarget;
+  if (confirmed) {
+    if (currentUnit == CM) {
+      cycleTarget = 1854 + (valueCM - 1) * 927;
+    } else {
+      cycleTarget = 1854 + ((valueIN - 0.4) / 0.2) * 927;
+    }
+  } else {
+    cycleTarget = CYCLE;
+  }
+
+  if (dirState == LOW && !stopped && counter >= cycleTarget) {
+    digitalWrite(MotorPin, HIGH);
+    digitalWrite(LED2, LOW);    
+    digitalWrite(LEDPin, HIGH);
+    myServo.write(180);
+    delay(800);
+    myServo.write(0);
+    delay(800);
+
+    delay(2000);
+
+    digitalWrite(LEDPin, LOW);
+    digitalWrite(LED2, HIGH);
+    digitalWrite(MotorPin, LOW);    
+
+    noInterrupts();
+    counter = 0;
+    interrupts();
+
+    stopped = false;
+  }  
+  else {
+    if (digitalRead(PWM_IN) == HIGH) {
+      digitalWrite(MotorPin, HIGH);
+      digitalWrite(LED2, LOW);
+    } else {
+      digitalWrite(MotorPin, LOW);
+      digitalWrite(LED2, HIGH);  
+    }
+  }
+}

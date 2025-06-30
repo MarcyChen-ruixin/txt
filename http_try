@@ -1,0 +1,6 @@
+    fetch('http://localhost:9090/get-ip')
+        .then(response => response.text())
+        .then(ip => {
+            console.log("Detected IP:", ip);
+
+            const BACKEND_URL = `http://${ip}:9090`;

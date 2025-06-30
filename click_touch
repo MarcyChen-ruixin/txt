@@ -1,0 +1,6 @@
+            function bindClickAndTouch(selector, handler) {
+                const el = document.getElementById(selector);
+                if (!el) return;
+                el.addEventListener('click', handler);
+                el.addEventListener('touchstart', handler); // 触屏支持
+            }
